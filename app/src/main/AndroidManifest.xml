@@ -18,7 +18,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Proto"
+        android:theme="@style/Theme.WeatherApp"
         tools:targetApi="31">
         <activity
             android:name=".MainActivity"

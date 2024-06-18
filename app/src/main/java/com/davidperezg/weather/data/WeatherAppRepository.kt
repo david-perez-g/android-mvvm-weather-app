@@ -1,4 +1,4 @@
-package com.davidperezg.weather
+package com.davidperezg.weather.data
 
 import android.os.Parcel
 import android.os.Parcelable

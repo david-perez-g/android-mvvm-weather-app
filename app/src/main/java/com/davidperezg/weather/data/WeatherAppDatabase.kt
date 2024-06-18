@@ -1,4 +1,4 @@
-package com.davidperezg.weather
+package com.davidperezg.weather.data
 
 import android.os.Parcelable
 import androidx.compose.runtime.getValue
@@ -12,6 +12,9 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import com.davidperezg.weather.util.WeekDay
+import com.davidperezg.weather.util.toCelsius
+import com.davidperezg.weather.util.toFahrenheit
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import java.util.Date

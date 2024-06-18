@@ -1,5 +1,6 @@
-package com.davidperezg.weather
+package com.davidperezg.weather.util
 
+import com.davidperezg.weather.R
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date

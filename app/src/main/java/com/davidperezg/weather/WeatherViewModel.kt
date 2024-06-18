@@ -9,6 +9,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.Room
+import com.davidperezg.weather.data.Temperature
+import com.davidperezg.weather.data.TemperatureUnit
+import com.davidperezg.weather.data.UITheme
+import com.davidperezg.weather.data.UserLocation
+import com.davidperezg.weather.data.WeatherAppDatabase
+import com.davidperezg.weather.data.WeatherAppRepository
+import com.davidperezg.weather.data.WeatherCondition
+import com.davidperezg.weather.data.WeatherCurrentState
+import com.davidperezg.weather.data.WeatherDayResume
+import com.davidperezg.weather.data.WeatherForecast
+import com.davidperezg.weather.util.WeekDay
+import com.davidperezg.weather.weatherapi.WeatherApiResponseBodyParserImpl
+import com.davidperezg.weather.weatherapi.RetrofitInstance
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -65,7 +78,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
     private val sharedPreferences = application
         .getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE)
 
-    private val responseBodyParser = ApiResponseBodyParser(application)
+    private val responseBodyParser = WeatherApiResponseBodyParserImpl(application)
 
     init {
         loadConfiguration()

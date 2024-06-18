@@ -23,7 +23,7 @@ enum class TemperatureUnit {
     CELSIUS, FAHRENHEIT
 }
 
-enum class UITheme {
+enum class AppTheme {
     LIGHT, DARK
 }
 

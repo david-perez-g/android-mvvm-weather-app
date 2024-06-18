@@ -1,7 +1,6 @@
 package com.davidperezg.weather
 
 import android.app.Application
-import android.content.Context
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.runtime.getValue
@@ -11,7 +10,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import com.davidperezg.weather.data.Temperature
 import com.davidperezg.weather.data.TemperatureUnit
-import com.davidperezg.weather.data.UITheme
+import com.davidperezg.weather.data.AppTheme
 import com.davidperezg.weather.data.UserLocation
 import com.davidperezg.weather.data.WeatherAppDatabase
 import com.davidperezg.weather.data.WeatherAppRepository
@@ -19,6 +18,7 @@ import com.davidperezg.weather.data.WeatherCondition
 import com.davidperezg.weather.data.WeatherCurrentState
 import com.davidperezg.weather.data.WeatherDayResume
 import com.davidperezg.weather.data.WeatherForecast
+import com.davidperezg.weather.util.SharedPreferencesUtil
 import com.davidperezg.weather.util.WeekDay
 import com.davidperezg.weather.weatherapi.WeatherApiResponseBodyParserImpl
 import com.davidperezg.weather.weatherapi.RetrofitInstance
@@ -51,12 +51,7 @@ val emptyWeatherForecast = WeatherForecast(
 class WeatherViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         const val TAG = "WeatherViewModel"
-        const val SHARED_PREFERENCES_NAME = "WeatherApp"
         const val DB_NAME = "WeatherAppDatabase"
-        const val SP_TEMPERATURE_UNIT = "TEMPERATURE_UNIT"
-        const val SP_UI_THEME = "UI_THEME"
-        const val SP_LAST_LOCATION = "LAST_LOCATION"
-        const val DEFAULT_LOCATION = "0,0"
         private const val API_KEY = "66e299409de74d0ca49151039241306" // WeatherAPI.com
     }
 
@@ -66,7 +61,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
     private var userLocation: UserLocation? = null
 
     lateinit var temperatureUnit : TemperatureUnit
-    lateinit var uiTheme : UITheme
+    lateinit var appTheme : AppTheme
 
     private val db = Room.databaseBuilder(
         application,
@@ -75,49 +70,37 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
 
     private val repository = WeatherAppRepository(db)
 
-    private val sharedPreferences = application
-        .getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE)
-
-    private val responseBodyParser = WeatherApiResponseBodyParserImpl(application)
+    private val sharedPreferences = SharedPreferencesUtil(application)
+    private val apiResponseParser = WeatherApiResponseBodyParserImpl(application)
 
     init {
         loadConfiguration()
     }
 
     fun loadConfiguration() {
-        val savedTemperatureUnit = sharedPreferences.getString(SP_TEMPERATURE_UNIT, TemperatureUnit.CELSIUS.name)
-        temperatureUnit = TemperatureUnit.valueOf(savedTemperatureUnit!!)
-        responseBodyParser.useTemperatureUnit(temperatureUnit)
-
-        val savedThemeMode = sharedPreferences.getString(SP_UI_THEME, UITheme.LIGHT.name)
-        uiTheme = UITheme.valueOf(savedThemeMode!!)
-
-        val savedLocation = sharedPreferences.getString(SP_LAST_LOCATION, DEFAULT_LOCATION)
-        userLocation = if (savedLocation!! == DEFAULT_LOCATION) {
-            null
-        } else {
-            UserLocation.fromString(savedLocation)
-        }
+        appTheme = sharedPreferences.getTheme()
+        userLocation = sharedPreferences.getLocation()
+        temperatureUnit = sharedPreferences.getTemperatureUnit()
 
         viewModelScope.launch {
             _weatherForecast.value = repository.getWeatherForecast() ?: emptyWeatherForecast
             applyTemperatureUnit(temperatureUnit)
         }
 
-
-        applyTheme(uiTheme)
+        applyTheme(appTheme)
+        apiResponseParser.useTemperatureUnit(temperatureUnit)
     }
 
     fun switchUITheme() {
-        uiTheme = if (uiTheme == UITheme.LIGHT) {
-            UITheme.DARK
+        appTheme = if (appTheme == AppTheme.LIGHT) {
+            AppTheme.DARK
         } else {
-            UITheme.LIGHT
+            AppTheme.LIGHT
         }
 
-        sharedPreferences.edit().putString(SP_UI_THEME, uiTheme.name).apply()
+        sharedPreferences.saveTheme(appTheme)
 
-        applyTheme(uiTheme)
+        applyTheme(appTheme)
     }
 
     fun useTemperatureUnit(unit: TemperatureUnit) {
@@ -129,8 +112,8 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
             TemperatureUnit.CELSIUS
         }
 
-        sharedPreferences.edit().putString(SP_TEMPERATURE_UNIT, temperatureUnit.name).apply()
-        responseBodyParser.useTemperatureUnit(temperatureUnit)
+        sharedPreferences.saveTemperatureUnit(temperatureUnit)
+        apiResponseParser.useTemperatureUnit(temperatureUnit)
         applyTemperatureUnit(temperatureUnit)
     }
 
@@ -153,16 +136,16 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private fun applyTheme(theme: UITheme) {
+    private fun applyTheme(theme: AppTheme) {
         when (theme) {
-            UITheme.LIGHT -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-            UITheme.DARK -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+            AppTheme.LIGHT -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+            AppTheme.DARK -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         }
     }
 
     fun updateUserLocation(location: UserLocation) {
         userLocation = location
-        sharedPreferences.edit().putString(SP_LAST_LOCATION, userLocation.toString()).apply()
+        sharedPreferences.saveLocation(userLocation!!)
         Log.i(TAG, "updateUserLocation: $userLocation")
     }
 
@@ -186,7 +169,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
 
             if (response.isSuccessful && response.body() != null) {
                 Log.i(TAG, "updateForecast: got a successful response!")
-                _weatherForecast.value = responseBodyParser.parse(response.body()!!)
+                _weatherForecast.value = apiResponseParser.parse(response.body()!!)
                 repository.insertOrUpdateWeatherForecast(weatherForecast)
             }
         }

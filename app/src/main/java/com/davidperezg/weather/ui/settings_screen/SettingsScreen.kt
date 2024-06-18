@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.davidperezg.weather.R
 import com.davidperezg.weather.WeatherViewModel
 import com.davidperezg.weather.data.TemperatureUnit
-import com.davidperezg.weather.data.UITheme
+import com.davidperezg.weather.data.AppTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,7 +72,7 @@ fun SettingsScreen(viewModel: WeatherViewModel, onPopBackStack: () -> Unit) {
                     modifier = Modifier.align(Alignment.CenterVertically)
                 )
 
-                var isDarkMode by remember { mutableStateOf(viewModel.uiTheme == UITheme.DARK) }
+                var isDarkMode by remember { mutableStateOf(viewModel.appTheme == AppTheme.DARK) }
 
                 Spacer(Modifier.weight(1f))
 

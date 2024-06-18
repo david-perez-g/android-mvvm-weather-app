@@ -13,14 +13,15 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.davidperezg.weather.data.UserLocation
+import com.davidperezg.weather.ui.settings_screen.SettingsScreen
 import com.davidperezg.weather.ui.theme.WeatherTheme
 import com.davidperezg.weather.ui.weather_app_screen.WeatherAppScreen
+import com.davidperezg.weather.util.Routes
 
 class MainActivity : AppCompatActivity() {
     private val TAG = "MainActivity"
@@ -69,23 +70,6 @@ class MainActivity : AppCompatActivity() {
 
     }
 
-    private fun setupUI() {
-        setContent {
-            WeatherTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    WeatherAppScreen(
-                        this@MainActivity,
-                        weatherViewModel,
-                        this::requestLocationPermission
-                    )
-                }
-            }
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         initLocationManager()
@@ -97,7 +81,11 @@ class MainActivity : AppCompatActivity() {
             if (isGranted) {
                 startLocationUpdates()
             } else {
-                Toast.makeText(this, getString(R.string.location_permission_denied), Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    getString(R.string.location_permission_denied),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
 
@@ -112,6 +100,37 @@ class MainActivity : AppCompatActivity() {
         }
 
         setupUI()
+    }
+
+    private fun setupUI() {
+        setContent {
+            WeatherTheme {
+                val navController = rememberNavController()
+                NavHost(
+                    navController = navController,
+                    startDestination = Routes.WEATHER_APP
+                ) {
+                    composable(Routes.WEATHER_APP) {
+                        WeatherAppScreen(
+                            this@MainActivity,
+                            viewModel = weatherViewModel,
+                            onLocationPermissionsNeeded = @MainActivity ::requestLocationPermission,
+                            onNavigate = { route ->
+                                navController.navigate(route)
+                            }
+                        )
+                    }
+                    composable(route = Routes.SETTINGS) {
+                        SettingsScreen(
+                            viewModel = weatherViewModel,
+                            onPopBackStack = {
+                                navController.popBackStack()
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 
     override fun onResume() {

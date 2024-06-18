@@ -36,7 +36,7 @@ import com.davidperezg.weather.data.UITheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: WeatherViewModel, onBack: () -> Unit) {
+fun SettingsScreen(viewModel: WeatherViewModel, onPopBackStack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -44,18 +44,20 @@ fun SettingsScreen(viewModel: WeatherViewModel, onBack: () -> Unit) {
                     Text(text = stringResource(R.string.settings))
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onPopBackStack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(
-            top = padding.calculateTopPadding(),
-            start = 14.dp,
-            end = 14.dp
-        )) {
+        Column(
+            modifier = Modifier.padding(
+                top = padding.calculateTopPadding(),
+                start = 14.dp,
+                end = 14.dp
+            )
+        ) {
             Divider(
                 color = MaterialTheme.colorScheme.inverseOnSurface,
                 thickness = 3.dp

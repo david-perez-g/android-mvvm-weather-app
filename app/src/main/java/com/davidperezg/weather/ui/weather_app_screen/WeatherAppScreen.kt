@@ -1,7 +1,6 @@
 package com.davidperezg.weather.ui.weather_app_screen
 
 import android.content.Context
-import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -29,15 +28,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.davidperezg.weather.R
-import com.davidperezg.weather.SettingsActivity
 import com.davidperezg.weather.WeatherViewModel
+import com.davidperezg.weather.util.Routes
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WeatherAppScreen(context: Context, vm: WeatherViewModel, onLocationPermissionsNeeded: () -> Unit) {
+fun WeatherAppScreen(
+    context: Context,
+    viewModel: WeatherViewModel,
+    onLocationPermissionsNeeded: () -> Unit,
+    onNavigate: (route: String) -> Unit,
+) {
     val isRefreshing = remember { mutableStateOf(false) }
 
     Scaffold(
@@ -51,9 +55,7 @@ fun WeatherAppScreen(context: Context, vm: WeatherViewModel, onLocationPermissio
                 },
                 actions = {
                     IconButton(onClick = {
-                        // Start SettingsActivity
-                        val intent = Intent(context, SettingsActivity::class.java)
-                        context.startActivity(intent)
+                        onNavigate(Routes.SETTINGS)
                     }) {
                         Icon(
                             Icons.Filled.Settings,
@@ -77,7 +79,7 @@ fun WeatherAppScreen(context: Context, vm: WeatherViewModel, onLocationPermissio
                         Toast.LENGTH_SHORT
                     )
                         .show()
-                    vm.updateForecast(onError = {
+                    viewModel.updateForecast(onError = {
                         Toast.makeText(
                             context,
                             R.string.unable_to_fetch_weather_data,
@@ -105,11 +107,11 @@ fun WeatherAppScreen(context: Context, vm: WeatherViewModel, onLocationPermissio
                 )
 
                 Spacer(modifier = Modifier.height(15.dp))
-                CurrentWeatherState(vm)
+                CurrentWeatherState(viewModel)
                 Spacer(modifier = Modifier.height(15.dp))
-                HourForecast(vm)
+                HourForecast(viewModel)
                 Spacer(modifier = Modifier.height(15.dp))
-                WeekForecast(vm)
+                WeekForecast(viewModel)
             }
         }
     }

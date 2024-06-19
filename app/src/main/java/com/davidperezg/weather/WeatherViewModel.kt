@@ -1,18 +1,15 @@
 package com.davidperezg.weather
 
-import android.app.Application
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.room.Room
 import com.davidperezg.weather.data.Temperature
 import com.davidperezg.weather.data.TemperatureUnit
 import com.davidperezg.weather.data.AppTheme
 import com.davidperezg.weather.data.UserLocation
-import com.davidperezg.weather.data.WeatherAppDatabase
 import com.davidperezg.weather.data.WeatherAppRepository
 import com.davidperezg.weather.data.WeatherCondition
 import com.davidperezg.weather.data.WeatherCurrentState
@@ -20,9 +17,8 @@ import com.davidperezg.weather.data.WeatherDayResume
 import com.davidperezg.weather.data.WeatherForecast
 import com.davidperezg.weather.util.SharedPreferencesUtil
 import com.davidperezg.weather.util.WeekDay
-import com.davidperezg.weather.weatherapi.WeatherApiResponseBodyParserImpl
-import com.davidperezg.weather.weatherapi.RetrofitInstance
-import kotlinx.coroutines.CoroutineScope
+import com.davidperezg.weather.weatherapi.WeatherApi
+import com.davidperezg.weather.weatherapi.WeatherApiResponseBodyParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -48,39 +44,27 @@ val emptyWeatherForecast = WeatherForecast(
     ), following24Hours = listOf()
 )
 
-class WeatherViewModel(application: Application) : AndroidViewModel(application) {
-    companion object {
-        const val TAG = "WeatherViewModel"
-        const val DB_NAME = "WeatherAppDatabase"
-        private const val API_KEY = "66e299409de74d0ca49151039241306" // WeatherAPI.com
-    }
-
+class WeatherViewModel(
+    private val repository: WeatherAppRepository,
+    private val spUtil: SharedPreferencesUtil,
+    private val weatherApi: WeatherApi,
+    private val apiResponseParser: WeatherApiResponseBodyParser,
+) : ViewModel() {
     private val _weatherForecast = mutableStateOf(emptyWeatherForecast)
     val weatherForecast by _weatherForecast
 
     private var userLocation: UserLocation? = null
-
     lateinit var temperatureUnit : TemperatureUnit
     lateinit var appTheme : AppTheme
-
-    private val db = Room.databaseBuilder(
-        application,
-        WeatherAppDatabase::class.java, DB_NAME
-    ).build()
-
-    private val repository = WeatherAppRepository(db)
-
-    private val sharedPreferences = SharedPreferencesUtil(application)
-    private val apiResponseParser = WeatherApiResponseBodyParserImpl(application)
 
     init {
         loadConfiguration()
     }
 
     fun loadConfiguration() {
-        appTheme = sharedPreferences.getTheme()
-        userLocation = sharedPreferences.getLocation()
-        temperatureUnit = sharedPreferences.getTemperatureUnit()
+        appTheme = spUtil.getTheme()
+        userLocation = spUtil.getLocation()
+        temperatureUnit = spUtil.getTemperatureUnit()
 
         viewModelScope.launch {
             _weatherForecast.value = repository.getWeatherForecast() ?: emptyWeatherForecast
@@ -98,12 +82,13 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
             AppTheme.LIGHT
         }
 
-        sharedPreferences.saveTheme(appTheme)
+        spUtil.saveTheme(appTheme)
 
         applyTheme(appTheme)
     }
 
     fun useTemperatureUnit(unit: TemperatureUnit) {
+        // Nothing to change
         if (unit == temperatureUnit) return
 
         temperatureUnit = if (temperatureUnit == TemperatureUnit.CELSIUS) {
@@ -112,7 +97,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
             TemperatureUnit.CELSIUS
         }
 
-        sharedPreferences.saveTemperatureUnit(temperatureUnit)
+        spUtil.saveTemperatureUnit(temperatureUnit)
         apiResponseParser.useTemperatureUnit(temperatureUnit)
         applyTemperatureUnit(temperatureUnit)
     }
@@ -121,6 +106,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
         weatherForecast.apply {
             currentState.temperature.useTemperatureUnit(unit)
             currentState.temperatureFeelsLike.useTemperatureUnit(unit)
+
             days.forEach {
                 it.hours.forEach { hour -> hour.temperature.useTemperatureUnit(unit) }
                 it.minimumTemperature.useTemperatureUnit(unit)
@@ -145,7 +131,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateUserLocation(location: UserLocation) {
         userLocation = location
-        sharedPreferences.saveLocation(userLocation!!)
+        spUtil.saveLocation(userLocation!!)
         Log.i(TAG, "updateUserLocation: $userLocation")
     }
 
@@ -155,10 +141,10 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
             throw IllegalStateException("No user location provided")
         }
 
-        CoroutineScope(Dispatchers.IO).launch {
+        viewModelScope.launch {
             Log.i(TAG, "updateForecast: getting forecast")
             val response = try {
-                RetrofitInstance.api.getForecast(API_KEY, userLocation!!.toString())
+                weatherApi.getForecast(API_KEY, userLocation!!.toString())
             } catch (e: Exception) {
                 Log.e(TAG, "updateForecast:" + e.message)
                 withContext(Dispatchers.Main) {
@@ -173,5 +159,10 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
                 repository.insertOrUpdateWeatherForecast(weatherForecast)
             }
         }
+    }
+
+    companion object {
+        const val TAG = "WeatherViewModel"
+        private const val API_KEY = "66e299409de74d0ca49151039241306" // WeatherAPI.com
     }
 }

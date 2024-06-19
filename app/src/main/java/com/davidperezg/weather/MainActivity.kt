@@ -11,7 +11,6 @@ import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.NavHost
@@ -22,10 +21,11 @@ import com.davidperezg.weather.ui.settings_screen.SettingsScreen
 import com.davidperezg.weather.ui.theme.WeatherTheme
 import com.davidperezg.weather.ui.weather_app_screen.WeatherAppScreen
 import com.davidperezg.weather.util.Routes
+import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class MainActivity : AppCompatActivity() {
     private val TAG = "MainActivity"
-    private val weatherViewModel by viewModels<WeatherViewModel>()
+    private val weatherViewModel by viewModel<WeatherViewModel>()
 
     private lateinit var locationManager: LocationManager
     private lateinit var locationListener: LocationListener

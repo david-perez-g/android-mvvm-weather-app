@@ -1,10 +1,7 @@
 package com.davidperezg.weather
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
-import android.location.LocationListener
-import android.location.LocationManager
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -16,19 +13,19 @@ import androidx.core.content.ContextCompat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.davidperezg.weather.data.UserLocation
 import com.davidperezg.weather.ui.settings_screen.SettingsScreen
 import com.davidperezg.weather.ui.theme.WeatherTheme
 import com.davidperezg.weather.ui.weather_app_screen.WeatherAppScreen
+import com.davidperezg.weather.util.LocationReceiver
 import com.davidperezg.weather.util.Routes
+import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class MainActivity : AppCompatActivity() {
     private val TAG = "MainActivity"
     private val weatherViewModel by viewModel<WeatherViewModel>()
 
-    private lateinit var locationManager: LocationManager
-    private lateinit var locationListener: LocationListener
+    private val locationReceiver: LocationReceiver by inject()
 
     private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
 
@@ -42,38 +39,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun initLocationManager() {
-        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
-    }
-
-    private fun initLocationListener() {
-        locationListener = LocationListener {
-            Log.i(TAG, "onLocationResult: $it")
-            weatherViewModel.updateUserLocation(
-                UserLocation(
-                    it.latitude,
-                    it.longitude,
-                )
-            )
-        }
-    }
-
     @Suppress("MissingPermission")
     private fun startLocationUpdates() {
-        Log.i(TAG, "startLocationUpdates: Starting")
         try {
-            locationManager
-                .requestLocationUpdates(LocationManager.GPS_PROVIDER, 0L, 0f, locationListener)
+            locationReceiver.startReceivingUpdates()
         } catch (e: SecurityException) {
             Log.e(TAG, "startLocationUpdates: ${e.message}")
         }
-
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        initLocationManager()
-        initLocationListener()
 
         requestPermissionLauncher = registerForActivityResult(
             ActivityResultContracts.RequestPermission()

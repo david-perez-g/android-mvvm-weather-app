@@ -1,5 +1,6 @@
 package com.davidperezg.weather
 
+import android.location.Location
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.runtime.getValue
@@ -15,6 +16,7 @@ import com.davidperezg.weather.data.WeatherCondition
 import com.davidperezg.weather.data.WeatherCurrentState
 import com.davidperezg.weather.data.WeatherDayResume
 import com.davidperezg.weather.data.WeatherForecast
+import com.davidperezg.weather.util.LocationReceiver
 import com.davidperezg.weather.util.SharedPreferencesUtil
 import com.davidperezg.weather.util.WeekDay
 import com.davidperezg.weather.weatherapi.WeatherApi
@@ -49,21 +51,23 @@ class WeatherViewModel(
     private val spUtil: SharedPreferencesUtil,
     private val weatherApi: WeatherApi,
     private val apiResponseParser: WeatherApiResponseBodyParser,
+    locationReceiver: LocationReceiver
 ) : ViewModel() {
     private val _weatherForecast = mutableStateOf(emptyWeatherForecast)
     val weatherForecast by _weatherForecast
 
-    private var userLocation: UserLocation? = null
+    private var location: UserLocation? = null
     lateinit var temperatureUnit : TemperatureUnit
     lateinit var appTheme : AppTheme
 
     init {
         loadConfiguration()
+        locationReceiver.subscribe(this::updateLocation)
     }
 
     fun loadConfiguration() {
         appTheme = spUtil.getTheme()
-        userLocation = spUtil.getLocation()
+        location = spUtil.getLocation()
         temperatureUnit = spUtil.getTemperatureUnit()
 
         viewModelScope.launch {
@@ -75,7 +79,7 @@ class WeatherViewModel(
         apiResponseParser.useTemperatureUnit(temperatureUnit)
     }
 
-    fun switchUITheme() {
+    fun switchUiTheme() {
         appTheme = if (appTheme == AppTheme.LIGHT) {
             AppTheme.DARK
         } else {
@@ -129,14 +133,17 @@ class WeatherViewModel(
         }
     }
 
-    fun updateUserLocation(location: UserLocation) {
-        userLocation = location
-        spUtil.saveLocation(userLocation!!)
-        Log.i(TAG, "updateUserLocation: $userLocation")
+    fun updateLocation(location: Location) {
+        this.location = UserLocation(
+            latitude = location.latitude,
+            longitude = location.longitude
+        )
+        spUtil.saveLocation(this.location!!)
+        Log.i(TAG, "updateUserLocation: ${this.location}")
     }
 
     fun updateForecast(onError: (e: Exception) -> Unit) {
-        if (userLocation == null) {
+        if (location == null) {
             Log.e(TAG, "updateForecast: No user location")
             throw IllegalStateException("No user location provided")
         }
@@ -144,7 +151,7 @@ class WeatherViewModel(
         viewModelScope.launch {
             Log.i(TAG, "updateForecast: getting forecast")
             val response = try {
-                weatherApi.getForecast(API_KEY, userLocation!!.toString())
+                weatherApi.getForecast(API_KEY, location!!.toString())
             } catch (e: Exception) {
                 Log.e(TAG, "updateForecast:" + e.message)
                 withContext(Dispatchers.Main) {

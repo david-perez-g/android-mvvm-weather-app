@@ -80,7 +80,7 @@ fun SettingsScreen(viewModel: WeatherViewModel, onPopBackStack: () -> Unit) {
                     checked = isDarkMode,
                     onCheckedChange = { isChecked ->
                         isDarkMode = isChecked
-                        viewModel.switchUITheme()
+                        viewModel.switchUiTheme()
                     },
                     modifier = Modifier.align(Alignment.CenterVertically)
                 )

@@ -4,9 +4,13 @@ import android.app.Application
 import androidx.room.Room
 import com.davidperezg.weather.WeatherViewModel
 import com.davidperezg.weather.data.WeatherAppDatabase
+import com.davidperezg.weather.data.WeatherAppRepository
 import com.davidperezg.weather.data.WeatherAppRepositoryImpl
+import com.davidperezg.weather.util.LocationReceiver
+import com.davidperezg.weather.util.LocationReceiverImpl
 import com.davidperezg.weather.util.SharedPreferencesUtil
 import com.davidperezg.weather.weatherapi.WeatherApi
+import com.davidperezg.weather.weatherapi.WeatherApiResponseBodyParser
 import com.davidperezg.weather.weatherapi.WeatherApiResponseBodyParserImpl
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
@@ -22,7 +26,7 @@ val appModule = module {
             .create(WeatherApi::class.java)
     }
 
-    single {
+    single<WeatherApiResponseBodyParser> {
         WeatherApiResponseBodyParserImpl(get())
     }
 
@@ -34,7 +38,7 @@ val appModule = module {
         ).build()
     }
 
-    single {
+    single<WeatherAppRepository> {
         WeatherAppRepositoryImpl(get<WeatherAppDatabase>().weatherForecastDao())
     }
 
@@ -42,12 +46,17 @@ val appModule = module {
         SharedPreferencesUtil(get())
     }
 
+    single<LocationReceiver> {
+        LocationReceiverImpl(get())
+    }
+
     viewModel {
         WeatherViewModel(
-            repository = get<WeatherAppRepositoryImpl>(),
+            repository = get(),
             spUtil = get(),
             weatherApi = get(),
-            apiResponseParser = get<WeatherApiResponseBodyParserImpl>(),
+            apiResponseParser = get(),
+            locationReceiver = get()
         )
     }
 }

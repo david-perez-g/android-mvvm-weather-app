@@ -1,143 +1,51 @@
 package com.davidperezg.weather.data
 
-import android.os.Parcelable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import android.app.Application
+import android.util.Log
 import androidx.room.Dao
 import androidx.room.Database
-import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
-import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.davidperezg.weather.util.WeekDay
-import com.davidperezg.weather.util.toCelsius
-import com.davidperezg.weather.util.toFahrenheit
-import kotlinx.parcelize.IgnoredOnParcel
-import kotlinx.parcelize.Parcelize
+import com.davidperezg.weather.util.parcelForecast
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import java.util.Date
 
-enum class TemperatureUnit {
-    CELSIUS, FAHRENHEIT
-}
 
-enum class AppTheme {
-    LIGHT, DARK
-}
-
-@Parcelize
-class Temperature(
-    // value to be parceled
-    private var _value: Double,
-    private var temperatureUnit: TemperatureUnit = TemperatureUnit.CELSIUS,
-) : Parcelable {
-    @IgnoredOnParcel
-    private var value by mutableStateOf(_value) // value to be observed in the UI
-
-    fun useTemperatureUnit(unit: TemperatureUnit) {
-        // no need to change anything
-        if (unit == temperatureUnit) return
-        switchTemperatureUnit()
-    }
-
-    private fun switchTemperatureUnit() {
-        if (temperatureUnit == TemperatureUnit.FAHRENHEIT) {
-            temperatureUnit = TemperatureUnit.CELSIUS
-            value = toCelsius(value)
-            _value = value
-        } else {
-            temperatureUnit = TemperatureUnit.FAHRENHEIT
-            value = toFahrenheit(value)
-            _value = value
-        }
-    }
-
-    override fun toString(): String {
-        val unit = if (temperatureUnit == TemperatureUnit.CELSIUS) "C" else "F"
-        return "${String.format("%.1f", value)}˚$unit"
-    }
-}
-
-@Parcelize
-data class WeatherCondition(
-    val text: String,
-    val imageResourceId: Int,
-) : Parcelable
-
-@Parcelize
-data class WeatherHourResume(
-    val date: Date,
-    val condition: WeatherCondition,
-    val temperature: Temperature,
-    val willItRain: Boolean,
-    val chanceOfRain: Int,
-) : Parcelable
-
-@Parcelize
-data class WeatherDayResume(
-    val date: Date,
-    val weekDay: WeekDay,
-    val condition: WeatherCondition,
-    val minimumTemperature: Temperature,
-    val maximumTemperature: Temperature,
-    val hours: List<WeatherHourResume>,
-) : Parcelable
-
-@Parcelize
-data class WeatherCurrentState(
-    val date: Date,
-    val temperature: Temperature,
-    val temperatureFeelsLike: Temperature,
-    val condition: WeatherCondition,
-    val humidity: Int,
-) : Parcelable
-
-@Parcelize
-data class WeatherForecast(
-    val city: String,
-    val country: String,
-    val currentState: WeatherCurrentState,
-    val days: List<WeatherDayResume>,
-    val today: WeatherDayResume,
-    val following24Hours: List<WeatherHourResume>,
-) : Parcelable
-
-data class UserLocation(
-    val latitude: Double,
-    val longitude: Double,
-) {
-    override fun toString(): String {
-        return "$latitude,$longitude"
-    }
-
-    companion object {
-        fun fromString(string: String): UserLocation {
-            val pieces = string.split(",")
-            return UserLocation(
-                pieces.first().toDouble(),
-                pieces.last().toDouble()
-            )
-        }
-    }
-}
-
-@Entity
-data class WeatherForecastEntity(
-    @PrimaryKey val id: Int = 0, // constant ID
-    val data: ByteArray
+val defaultWeatherForecast = WeatherForecast(
+    "-", "-", WeatherCurrentState(
+        date = Date(0),
+        temperature = Temperature(0.0),
+        temperatureFeelsLike = Temperature(0.0),
+        condition = WeatherCondition("-", 0),
+        humidity = 50,
+    ),
+    days = listOf(),
+    today = WeatherDayResume(
+        date = Date(0),
+        condition = WeatherCondition("-", 0),
+        hours = listOf(),
+        minimumTemperature = Temperature(0.0),
+        maximumTemperature = Temperature(0.0),
+        weekDay = WeekDay.FRIDAY,
+    ), following24Hours = listOf()
 )
 
 @Dao
 interface WeatherForecastDao {
     @Query("SELECT * FROM WeatherForecastEntity WHERE id = 0")
-    suspend fun getWeatherForecast(): WeatherForecastEntity?
+    fun getWeatherForecast(): Flow<WeatherForecastEntity?>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertOrUpdateWeatherForecast(weatherForecast: WeatherForecastEntity)
+    suspend fun insertOrUpdate(weatherForecast: WeatherForecastEntity)
 }
-
 
 @Database(
     entities = [
@@ -145,6 +53,45 @@ interface WeatherForecastDao {
     ],
     version = 1
 )
-abstract class WeatherAppDatabase : RoomDatabase() {
+abstract class WeatherAppDatabase
+    : RoomDatabase() {
     abstract fun weatherForecastDao(): WeatherForecastDao
+
+    companion object {
+        @Volatile private var INSTANCE: WeatherAppDatabase? = null
+
+        fun getInstance(app: Application): WeatherAppDatabase {
+            INSTANCE?.let {
+                return INSTANCE!!
+            }
+
+            return buildDatabase(app).also { INSTANCE = it }
+        }
+
+        private fun buildDatabase(app: Application) =
+            Room.databaseBuilder(
+                app,
+                WeatherAppDatabase::class.java,
+                "WeatherAppDatabase",
+            )
+                .addCallback(object : Callback() {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        super.onCreate(db)
+
+                        CoroutineScope(Dispatchers.IO).launch {
+                            prePopulateDatabase(getInstance(app).weatherForecastDao())
+                        }
+                    }
+                })
+                .build()
+
+        suspend fun prePopulateDatabase(weatherForecastDao: WeatherForecastDao) {
+            Log.i("WeatherDatabase", "prePopulateDatabase: populating DB")
+            weatherForecastDao.insertOrUpdate(
+                WeatherForecastEntity(
+                    data = parcelForecast(defaultWeatherForecast)
+                )
+            )
+        }
+    }
 }

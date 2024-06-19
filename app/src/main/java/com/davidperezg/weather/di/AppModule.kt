@@ -1,7 +1,5 @@
 package com.davidperezg.weather.di
 
-import android.app.Application
-import androidx.room.Room
 import com.davidperezg.weather.WeatherViewModel
 import com.davidperezg.weather.data.WeatherAppDatabase
 import com.davidperezg.weather.data.WeatherAppRepository
@@ -31,15 +29,15 @@ val appModule = module {
     }
 
     single {
-        Room.databaseBuilder(
-            get<Application>(),
-            WeatherAppDatabase::class.java,
-            "WeatherAppDatabase"
-        ).build()
+        WeatherAppDatabase.getInstance(get())
     }
 
     single<WeatherAppRepository> {
-        WeatherAppRepositoryImpl(get<WeatherAppDatabase>().weatherForecastDao())
+        WeatherAppRepositoryImpl(
+            weatherForecastDao = get<WeatherAppDatabase>().weatherForecastDao(),
+            weatherApi = get(),
+            apiResponseParser = get()
+        )
     }
 
     single {
@@ -52,10 +50,9 @@ val appModule = module {
 
     viewModel {
         WeatherViewModel(
+            context = get(),
             repository = get(),
             spUtil = get(),
-            weatherApi = get(),
-            apiResponseParser = get(),
             locationReceiver = get()
         )
     }

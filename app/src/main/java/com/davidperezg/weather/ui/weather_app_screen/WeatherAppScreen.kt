@@ -1,7 +1,5 @@
 package com.davidperezg.weather.ui.weather_app_screen
 
-import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -16,12 +14,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -29,22 +33,49 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.davidperezg.weather.R
 import com.davidperezg.weather.WeatherViewModel
+import com.davidperezg.weather.data.defaultWeatherForecast
+import com.davidperezg.weather.ui.UiEvent
+import com.davidperezg.weather.ui.ViewModelEvent
 import com.davidperezg.weather.util.Routes
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WeatherAppScreen(
-    context: Context,
     viewModel: WeatherViewModel,
-    onLocationPermissionsNeeded: () -> Unit,
     onNavigate: (route: String) -> Unit,
 ) {
+    val forecast = viewModel
+        .weatherForecast
+        .collectAsState(initial = defaultWeatherForecast)
+
     val isRefreshing = remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    LaunchedEffect(key1 = true) {
+        viewModel.uiEvent.collect { event ->
+            when (event) {
+                is ViewModelEvent.ShowSnackbar -> {
+                    val result = snackbarHostState.showSnackbar(
+                        message = event.message,
+                        actionLabel = event.action
+                    )
+
+                    if (result == SnackbarResult.ActionPerformed &&
+                        event.action == context.getString(R.string.retry_fetch)) {
+                        viewModel.onUiEvent(UiEvent.UpdateForecast)
+                    }
+                }
+
+                is ViewModelEvent.Navigate -> onNavigate(event.route)
+            }
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -72,24 +103,7 @@ fun WeatherAppScreen(
         SwipeRefresh(
             state = rememberSwipeRefreshState(isRefreshing = isRefreshing.value),
             onRefresh = {
-                try {
-                    Toast.makeText(
-                        context,
-                        R.string.updating,
-                        Toast.LENGTH_SHORT
-                    )
-                        .show()
-                    viewModel.updateForecast(onError = {
-                        Toast.makeText(
-                            context,
-                            R.string.unable_to_fetch_weather_data,
-                            Toast.LENGTH_SHORT
-                        )
-                            .show()
-                    })
-                } catch (e: IllegalStateException) {
-                    onLocationPermissionsNeeded()
-                }
+                viewModel.onUiEvent(UiEvent.UpdateForecast)
             },
         ) {
             Column(
@@ -107,11 +121,11 @@ fun WeatherAppScreen(
                 )
 
                 Spacer(modifier = Modifier.height(15.dp))
-                CurrentWeatherState(viewModel)
+                CurrentWeatherState(forecast)
                 Spacer(modifier = Modifier.height(15.dp))
-                HourForecast(viewModel)
+                HourForecast(forecast)
                 Spacer(modifier = Modifier.height(15.dp))
-                WeekForecast(viewModel)
+                WeekForecast(forecast)
             }
         }
     }

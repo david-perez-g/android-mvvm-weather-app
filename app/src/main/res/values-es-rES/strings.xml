@@ -111,4 +111,7 @@
     <string name="week_day_friday">Viernes</string>
     <string name="week_day_saturday">Sábado</string>
     <string name="updating">Actualizando</string>
+    <string name="location_unavailable">Su ubicación no está disponible</string>
+    <string name="retry_fetch">Reintentar</string>
+    <string name="forecast_updated">Tiempo actualizado</string>
 </resources>

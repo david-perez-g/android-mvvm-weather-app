@@ -110,5 +110,8 @@
     <string name="week_day_friday">Friday</string>
     <string name="week_day_saturday">Saturday</string>
     <string name="updating">Updating</string>
+    <string name="location_unavailable">No location available</string>
+    <string name="retry_fetch">Retry</string>
+    <string name="forecast_updated">Forecast updated</string>
 
 </resources>

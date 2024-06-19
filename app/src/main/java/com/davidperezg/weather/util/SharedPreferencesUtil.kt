@@ -48,7 +48,7 @@ class SharedPreferencesUtil(
         preferences.edit().putString(APP_THEME, theme.name).apply()
     }
 
-    fun getLocation(): UserLocation? {
+    fun getLastLocation(): UserLocation? {
         val location = preferences.getString(LAST_LOCATION, DEFAULT_LAST_LOCATION)!!
         if (location == DEFAULT_LAST_LOCATION) {
             return null
@@ -56,7 +56,7 @@ class SharedPreferencesUtil(
         return UserLocation.fromString(location)
     }
 
-    fun saveLocation(location: UserLocation) {
+    fun saveLastLocation(location: UserLocation) {
         preferences.edit().putString(LAST_LOCATION, location.toString()).apply()
     }
 }

@@ -33,6 +33,7 @@ import com.davidperezg.weather.R
 import com.davidperezg.weather.WeatherViewModel
 import com.davidperezg.weather.data.TemperatureUnit
 import com.davidperezg.weather.data.AppTheme
+import com.davidperezg.weather.ui.UiEvent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,7 +81,12 @@ fun SettingsScreen(viewModel: WeatherViewModel, onPopBackStack: () -> Unit) {
                     checked = isDarkMode,
                     onCheckedChange = { isChecked ->
                         isDarkMode = isChecked
-                        viewModel.switchUiTheme()
+                        viewModel.onUiEvent(
+                            event = UiEvent.SetAppTheme(
+                                if (isDarkMode) AppTheme.DARK
+                                else AppTheme.LIGHT
+                            )
+                        )
                     },
                     modifier = Modifier.align(Alignment.CenterVertically)
                 )
@@ -114,7 +120,9 @@ fun SettingsScreen(viewModel: WeatherViewModel, onPopBackStack: () -> Unit) {
                             },
                             onClick = {
                                 temperatureUnit = TemperatureUnit.FAHRENHEIT
-                                viewModel.useTemperatureUnit(temperatureUnit)
+                                viewModel.onUiEvent(UiEvent.SetTemperatureUnit(
+                                    temperatureUnit
+                                ))
                                 expanded = false
                             })
 
@@ -124,7 +132,9 @@ fun SettingsScreen(viewModel: WeatherViewModel, onPopBackStack: () -> Unit) {
                             },
                             onClick = {
                                 temperatureUnit = TemperatureUnit.CELSIUS
-                                viewModel.useTemperatureUnit(temperatureUnit)
+                                viewModel.onUiEvent(UiEvent.SetTemperatureUnit(
+                                    temperatureUnit
+                                ))
                                 expanded = false
                             })
                     }

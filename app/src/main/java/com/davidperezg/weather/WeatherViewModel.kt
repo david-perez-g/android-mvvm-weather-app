@@ -1,64 +1,43 @@
 package com.davidperezg.weather
 
+import android.app.Application
 import android.location.Location
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.davidperezg.weather.data.Temperature
 import com.davidperezg.weather.data.TemperatureUnit
 import com.davidperezg.weather.data.AppTheme
 import com.davidperezg.weather.data.UserLocation
 import com.davidperezg.weather.data.WeatherAppRepository
-import com.davidperezg.weather.data.WeatherCondition
-import com.davidperezg.weather.data.WeatherCurrentState
-import com.davidperezg.weather.data.WeatherDayResume
-import com.davidperezg.weather.data.WeatherForecast
+import com.davidperezg.weather.ui.UiEvent
+import com.davidperezg.weather.ui.ViewModelEvent
 import com.davidperezg.weather.util.LocationReceiver
+import com.davidperezg.weather.util.Routes
 import com.davidperezg.weather.util.SharedPreferencesUtil
-import com.davidperezg.weather.util.WeekDay
-import com.davidperezg.weather.weatherapi.WeatherApi
-import com.davidperezg.weather.weatherapi.WeatherApiResponseBodyParser
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.lang.IllegalStateException
-import java.util.Date
-
-val emptyWeatherForecast = WeatherForecast(
-    "-", "-", WeatherCurrentState(
-        date = Date(0),
-        temperature = Temperature(0.0),
-        temperatureFeelsLike = Temperature(0.0),
-        condition = WeatherCondition("-", 0),
-        humidity = 50,
-    ),
-    days = listOf(),
-    today = WeatherDayResume(
-        date = Date(0),
-        condition = WeatherCondition("-", 0),
-        hours = listOf(),
-        minimumTemperature = Temperature(0.0),
-        maximumTemperature = Temperature(0.0),
-        weekDay = WeekDay.FRIDAY,
-    ), following24Hours = listOf()
-)
+import java.io.IOException
 
 class WeatherViewModel(
+    private val context: Application,
     private val repository: WeatherAppRepository,
     private val spUtil: SharedPreferencesUtil,
-    private val weatherApi: WeatherApi,
-    private val apiResponseParser: WeatherApiResponseBodyParser,
-    locationReceiver: LocationReceiver
+    locationReceiver: LocationReceiver,
 ) : ViewModel() {
-    private val _weatherForecast = mutableStateOf(emptyWeatherForecast)
-    val weatherForecast by _weatherForecast
+    val weatherForecast = repository.getWeatherForecast()
 
-    private var location: UserLocation? = null
-    lateinit var temperatureUnit : TemperatureUnit
-    lateinit var appTheme : AppTheme
+    private var location: UserLocation? = spUtil.getLastLocation()
+    var temperatureUnit by mutableStateOf(spUtil.getTemperatureUnit())
+    var appTheme by mutableStateOf(spUtil.getTheme())
+
+    private val _uiEvent = Channel<ViewModelEvent>()
+    val uiEvent = _uiEvent.receiveAsFlow()
 
     init {
         loadConfiguration()
@@ -66,20 +45,20 @@ class WeatherViewModel(
     }
 
     fun loadConfiguration() {
-        appTheme = spUtil.getTheme()
-        location = spUtil.getLocation()
         temperatureUnit = spUtil.getTemperatureUnit()
+        appTheme = spUtil.getTheme()
+        location = spUtil.getLastLocation()
 
         viewModelScope.launch {
-            _weatherForecast.value = repository.getWeatherForecast() ?: emptyWeatherForecast
-            applyTemperatureUnit(temperatureUnit)
+            repository.setTemperatureUnit(temperatureUnit)
         }
 
         applyTheme(appTheme)
-        apiResponseParser.useTemperatureUnit(temperatureUnit)
     }
 
-    fun switchUiTheme() {
+    private fun setUiTheme(theme: AppTheme) {
+        if (theme == appTheme) return
+
         appTheme = if (appTheme == AppTheme.LIGHT) {
             AppTheme.DARK
         } else {
@@ -87,11 +66,17 @@ class WeatherViewModel(
         }
 
         spUtil.saveTheme(appTheme)
-
         applyTheme(appTheme)
     }
 
-    fun useTemperatureUnit(unit: TemperatureUnit) {
+    private fun applyTheme(theme: AppTheme) {
+        when (theme) {
+            AppTheme.LIGHT -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+            AppTheme.DARK -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+        }
+    }
+
+    private fun useTemperatureUnit(unit: TemperatureUnit) {
         // Nothing to change
         if (unit == temperatureUnit) return
 
@@ -102,74 +87,93 @@ class WeatherViewModel(
         }
 
         spUtil.saveTemperatureUnit(temperatureUnit)
-        apiResponseParser.useTemperatureUnit(temperatureUnit)
-        applyTemperatureUnit(temperatureUnit)
-    }
-
-    private fun applyTemperatureUnit(unit: TemperatureUnit) {
-        weatherForecast.apply {
-            currentState.temperature.useTemperatureUnit(unit)
-            currentState.temperatureFeelsLike.useTemperatureUnit(unit)
-
-            days.forEach {
-                it.hours.forEach { hour -> hour.temperature.useTemperatureUnit(unit) }
-                it.minimumTemperature.useTemperatureUnit(unit)
-                it.maximumTemperature.useTemperatureUnit(unit)
-            }
-            today.minimumTemperature.useTemperatureUnit(unit)
-            today.maximumTemperature.useTemperatureUnit(unit)
-
-            following24Hours.forEach { it.temperature.useTemperatureUnit(unit) }
-            viewModelScope.launch {
-                repository.insertOrUpdateWeatherForecast(weatherForecast)
-            }
+        viewModelScope.launch {
+            repository.setTemperatureUnit(temperatureUnit)
         }
     }
 
-    private fun applyTheme(theme: AppTheme) {
-        when (theme) {
-            AppTheme.LIGHT -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-            AppTheme.DARK -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-        }
-    }
-
-    fun updateLocation(location: Location) {
+    private fun updateLocation(location: Location) {
         this.location = UserLocation(
             latitude = location.latitude,
             longitude = location.longitude
         )
-        spUtil.saveLocation(this.location!!)
+        spUtil.saveLastLocation(this.location!!)
         Log.i(TAG, "updateUserLocation: ${this.location}")
     }
 
-    fun updateForecast(onError: (e: Exception) -> Unit) {
+    private fun sendEventToUi(event: ViewModelEvent) {
+        viewModelScope.launch {
+            _uiEvent.send(event)
+        }
+    }
+
+
+    fun onUiEvent(event: UiEvent) {
+        when (event) {
+            UiEvent.SettingsIconClick -> sendEventToUi(ViewModelEvent.Navigate(Routes.SETTINGS))
+
+            UiEvent.UpdateForecast -> {
+                viewModelScope.launch {
+                    handleOnUpdateForecastEvent()
+                }
+            }
+
+            is UiEvent.SetAppTheme -> setUiTheme(event.theme)
+            is UiEvent.SetTemperatureUnit -> useTemperatureUnit(event.unit)
+        }
+    }
+
+    private suspend fun handleOnUpdateForecastEvent() {
         if (location == null) {
-            Log.e(TAG, "updateForecast: No user location")
-            throw IllegalStateException("No user location provided")
+            sendEventToUi(
+                ViewModelEvent.ShowSnackbar(
+                    message = context.getString(R.string.location_unavailable),
+                )
+            )
+            return
         }
 
-        viewModelScope.launch {
-            Log.i(TAG, "updateForecast: getting forecast")
-            val response = try {
-                weatherApi.getForecast(API_KEY, location!!.toString())
-            } catch (e: Exception) {
-                Log.e(TAG, "updateForecast:" + e.message)
-                withContext(Dispatchers.Main) {
-                    onError(e)
-                }
-                return@launch
+        sendEventToUi(
+            ViewModelEvent.ShowSnackbar(
+                message = context.getString(R.string.updating),
+            )
+        )
+
+        val errorHandler = CoroutineExceptionHandler { _, throwable ->
+            if (throwable is IOException) {
+                Log.e(TAG, "handleOnUpdateForecastEvent: Network error", throwable)
+            } else {
+                Log.e(TAG, "handleOnUpdateForecastEvent: Unknown error", throwable)
             }
 
-            if (response.isSuccessful && response.body() != null) {
-                Log.i(TAG, "updateForecast: got a successful response!")
-                _weatherForecast.value = apiResponseParser.parse(response.body()!!)
-                repository.insertOrUpdateWeatherForecast(weatherForecast)
+            sendEventToUi(
+                ViewModelEvent.ShowSnackbar(
+                    message = context.getString(R.string.unable_to_fetch_weather_data),
+                    action = context.getString(R.string.retry_fetch)
+                )
+            )
+        }
+
+        val job = viewModelScope.launch(errorHandler) {
+            repository.fetchForecast(WEATHER_API_KEY, location!!)
+        }
+
+        job.invokeOnCompletion { exception ->
+            if (exception != null) {
+                // The job finished with an error
+                return@invokeOnCompletion
             }
+
+            sendEventToUi(
+                ViewModelEvent.ShowSnackbar(
+                    message = context.getString(R.string.forecast_updated),
+                )
+            )
         }
     }
 
     companion object {
         const val TAG = "WeatherViewModel"
-        private const val API_KEY = "66e299409de74d0ca49151039241306" // WeatherAPI.com
+        private const val WEATHER_API_KEY = "66e299409de74d0ca49151039241306" // WeatherAPI.com
     }
 }

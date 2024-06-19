@@ -1,6 +1,9 @@
 package com.davidperezg.weather.util
 
+import android.os.Parcel
+import android.os.Parcelable
 import com.davidperezg.weather.R
+import com.davidperezg.weather.data.WeatherForecast
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -62,4 +65,26 @@ fun getWeekDayFromDate(date: Date): WeekDay {
 fun getHourFromDate(date: Date): Int {
     val hour = formatHourFromDate(date)
     return hour.substring(0, 2).toInt()
+}
+
+inline fun <reified T : Parcelable> getParcelableCreator(): Parcelable.Creator<T> =
+    T::class.java.getDeclaredField("CREATOR").get(null) as Parcelable.Creator<T>
+
+
+
+fun unParcelForecastEntity(bytes: ByteArray): WeatherForecast {
+    val parcel = Parcel.obtain()
+    parcel.unmarshall(bytes, 0, bytes.size)
+    parcel.setDataPosition(0)
+    val forecast = getParcelableCreator<WeatherForecast>().createFromParcel(parcel)
+    parcel.recycle()
+    return forecast
+}
+
+fun parcelForecast(forecast: WeatherForecast): ByteArray {
+    val parcel = Parcel.obtain()
+    forecast.writeToParcel(parcel, 0)
+    val bytes = parcel.marshall()
+    parcel.recycle()
+    return bytes
 }

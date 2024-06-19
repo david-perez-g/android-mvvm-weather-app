@@ -12,19 +12,20 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.davidperezg.weather.R
-import com.davidperezg.weather.WeatherViewModel
+import com.davidperezg.weather.data.WeatherForecast
 
 @Composable
-fun CurrentWeatherState(vm: WeatherViewModel) {
+fun CurrentWeatherState(forecast: State<WeatherForecast>) {
     Row {
         Text(
-            text = "${vm.weatherForecast.city}, ${vm.weatherForecast.country}",
+            text = "${forecast.value.city}, ${forecast.value.country}",
             style = MaterialTheme.typography.titleMedium
         )
 
@@ -48,7 +49,7 @@ fun CurrentWeatherState(vm: WeatherViewModel) {
     ) {
         Row {
             Text(
-                text = vm.weatherForecast.currentState.temperature.toString(),
+                text = forecast.value.currentState.temperature.toString(),
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                 style = MaterialTheme.typography.displayLarge,
@@ -58,9 +59,9 @@ fun CurrentWeatherState(vm: WeatherViewModel) {
         Row {
             Text(
                 text =
-                "${vm.weatherForecast.currentState.condition.text}, " +
-                        "${vm.weatherForecast.today.minimumTemperature} / ${vm.weatherForecast.today.maximumTemperature}, \n"
-                        + stringResource(R.string.temp_feels_like) + " ${vm.weatherForecast.currentState.temperatureFeelsLike}",
+                "${forecast.value.currentState.condition.text}, " +
+                        "${forecast.value.today.minimumTemperature} / ${forecast.value.today.maximumTemperature}, \n"
+                        + stringResource(R.string.temp_feels_like) + " ${forecast.value.currentState.temperatureFeelsLike}",
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.fillMaxWidth()

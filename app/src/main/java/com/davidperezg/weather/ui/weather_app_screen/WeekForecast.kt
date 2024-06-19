@@ -6,11 +6,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.ui.Modifier
-import com.davidperezg.weather.WeatherViewModel
+import com.davidperezg.weather.data.WeatherForecast
 
 @Composable
-fun WeekForecast(vm: WeatherViewModel) {
+fun WeekForecast(forecast: State<WeatherForecast>) {
     Column(
         modifier = Modifier
             .background(
@@ -20,7 +21,7 @@ fun WeekForecast(vm: WeatherViewModel) {
             .wrapContentHeight()
 
     ) {
-        for (day in vm.weatherForecast.days) {
+        for (day in forecast.value.days) {
             DayResume(day)
         }
     }

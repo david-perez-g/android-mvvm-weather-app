@@ -1,37 +1,99 @@
 package com.davidperezg.weather.data
 
-import android.os.Parcel
-import android.os.Parcelable
+import android.util.Log
+import com.davidperezg.weather.util.parcelForecast
+import com.davidperezg.weather.util.unParcelForecastEntity
+import com.davidperezg.weather.weatherapi.WeatherApi
+import com.davidperezg.weather.weatherapi.WeatherApiResponseBodyParser
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 
 interface WeatherAppRepository {
-    suspend fun getWeatherForecast(): WeatherForecast?
+    fun getWeatherForecast(): Flow<WeatherForecast>
     suspend fun insertOrUpdateWeatherForecast(weatherForecast: WeatherForecast)
+    suspend fun fetchForecast(
+        apiKey: String,
+        location: UserLocation,
+    )
+
+    suspend fun setTemperatureUnit(unit: TemperatureUnit)
 }
 
 class WeatherAppRepositoryImpl(
-    private val weatherForecastDao: WeatherForecastDao
-): WeatherAppRepository {
-    private inline fun <reified T : Parcelable> getParcelableCreator(): Parcelable.Creator<T> =
-        T::class.java.getDeclaredField("CREATOR").get(null) as Parcelable.Creator<T>
+    private val weatherForecastDao: WeatherForecastDao,
+    private val weatherApi: WeatherApi,
+    private val apiResponseParser: WeatherApiResponseBodyParser,
+) : WeatherAppRepository {
 
-    override suspend fun getWeatherForecast(): WeatherForecast? {
-        val weatherForecastEntity =
-            weatherForecastDao.getWeatherForecast() ?: return null
+    private val TAG: String = "WeatherAppRepository"
 
-        val parcel = Parcel.obtain()
-        parcel.unmarshall(weatherForecastEntity.data, 0, weatherForecastEntity.data.size)
-        parcel.setDataPosition(0)
-        val forecast = getParcelableCreator<WeatherForecast>().createFromParcel(parcel)
-        parcel.recycle()
-        return forecast
+    private var latestWeatherForecastEntity: WeatherForecastEntity? = null
+
+    private val forecastEntityFlow = weatherForecastDao
+        .getWeatherForecast()
+        .onEach {
+            latestWeatherForecastEntity = it
+        }
+
+    override fun getWeatherForecast(): Flow<WeatherForecast> {
+        return forecastEntityFlow.map { forecastEntity ->
+            forecastEntity?.let {
+                return@map unParcelForecastEntity(it.data)
+            } ?: defaultWeatherForecast
+        }
     }
 
+
     override suspend fun insertOrUpdateWeatherForecast(weatherForecast: WeatherForecast) {
-        val parcel = Parcel.obtain()
-        weatherForecast.writeToParcel(parcel, 0)
-        val bytes = parcel.marshall()
-        parcel.recycle()
-        val weatherForecastEntity = WeatherForecastEntity(data = bytes)
-        weatherForecastDao.insertOrUpdateWeatherForecast(weatherForecastEntity)
+        weatherForecastDao.insertOrUpdate(
+            WeatherForecastEntity(
+                data = parcelForecast(weatherForecast)
+            )
+        )
+    }
+
+    override suspend fun fetchForecast(
+        apiKey: String,
+        location: UserLocation,
+    ) {
+        val response = weatherApi.getForecast(apiKey, location.toString())
+
+        if (response.isSuccessful && response.body() != null) {
+            Log.i(TAG, "updateForecast: got a successful response!")
+            val forecast = apiResponseParser.parse(response.body()!!)
+            insertOrUpdateWeatherForecast(forecast)
+        }
+    }
+
+    override suspend fun setTemperatureUnit(unit: TemperatureUnit) {
+        apiResponseParser.useTemperatureUnit(unit)
+
+        if (latestWeatherForecastEntity == null) {
+            return
+        }
+
+        val forecast = unParcelForecastEntity(latestWeatherForecastEntity!!.data)
+
+        forecast.apply {
+            currentState.temperature.useTemperatureUnit(unit)
+            currentState.temperatureFeelsLike.useTemperatureUnit(unit)
+
+            days.forEach {
+                it.hours.forEach { hour -> hour.temperature.useTemperatureUnit(unit) }
+                it.minimumTemperature.useTemperatureUnit(unit)
+                it.maximumTemperature.useTemperatureUnit(unit)
+            }
+            today.minimumTemperature.useTemperatureUnit(unit)
+            today.maximumTemperature.useTemperatureUnit(unit)
+
+            following24Hours.forEach { it.temperature.useTemperatureUnit(unit) }
+            CoroutineScope(Dispatchers.IO).launch {
+                insertOrUpdateWeatherForecast(forecast)
+            }
+        }
     }
 }

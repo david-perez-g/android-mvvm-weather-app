@@ -7,12 +7,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.davidperezg.weather.WeatherViewModel
+import com.davidperezg.weather.data.WeatherForecast
 
 @Composable
-fun HourForecast(vm: WeatherViewModel) {
+fun HourForecast(forecast: State<WeatherForecast>) {
     LazyRow(
         modifier = Modifier
             .background(
@@ -21,7 +22,7 @@ fun HourForecast(vm: WeatherViewModel) {
             .height(90.dp)
             .fillMaxWidth()
     ) {
-        items(vm.weatherForecast.following24Hours) { hour ->
+        items(forecast.value.following24Hours) { hour ->
             HourResume(hour)
         }
     }

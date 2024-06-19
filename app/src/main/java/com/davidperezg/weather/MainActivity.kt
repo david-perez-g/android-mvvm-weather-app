@@ -88,9 +88,7 @@ class MainActivity : AppCompatActivity() {
                 ) {
                     composable(Routes.WEATHER_APP) {
                         WeatherAppScreen(
-                            this@MainActivity,
                             viewModel = weatherViewModel,
-                            onLocationPermissionsNeeded = @MainActivity ::requestLocationPermission,
                             onNavigate = { route ->
                                 navController.navigate(route)
                             }
